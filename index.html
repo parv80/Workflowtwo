@@ -1,0 +1,294 @@
+    <!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Parking Management System</title>
+  <style>
+    :root{
+      --bg:#f4f7fb; --card:#ffffff; --accent:#1f6feb; --ok:#2dca73; --warn:#ffb020; --danger:#ff4d4f; --muted:#6b7280;
+      --spot-size:70px; --gap:12px;
+    }
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{margin:0;background:var(--bg);color:#0f172a}
+    header{background:linear-gradient(90deg,#0ea5e9, #1f6feb);color:white;padding:18px 24px}
+    .container{max-width:1100px;margin:22px auto;padding:18px}
+    .row{display:flex;gap:18px}
+    .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(12,16,30,0.06)}
+    .controls{flex:0 0 320px}
+    .status{flex:1}
+    h1{margin:0;font-size:20px}
+
+    form label{display:block;margin-top:10px;font-size:13px;color:var(--muted)}
+    input,select,button{width:100%;padding:10px;border-radius:8px;border:1px solid #e6edf6;margin-top:6px}
+    button{cursor:pointer;background:var(--accent);color:white;border:none}
+    button.secondary{background:#eef2ff;color:var(--accent);border:1px solid rgba(31,111,235,0.12)}
+
+    .garage{margin-top:18px}
+    .level{margin-bottom:18px}
+    .level h3{margin:6px 0;font-size:16px}
+    .spots{display:grid;grid-template-columns:repeat(auto-fit,minmax(var(--spot-size),1fr));gap:var(--gap)}
+    .spot{width:var(--spot-size);height:var(--spot-size);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;background:#f8fafc;border:1px dashed #e6eef9;position:relative}
+    .spot.taken{background:linear-gradient(180deg, #fff, #ffeef0);border:1px solid rgba(255,77,79,0.12)}
+    .spot.small{font-size:12px}
+    .spot .label{font-weight:700;font-size:12px}
+    .spot .sub{font-size:11px;color:var(--muted)}
+    .legend{display:flex;gap:10px;align-items:center;margin-top:10px}
+    .legend span{display:flex;gap:6px;align-items:center}
+    .color{width:14px;height:14px;border-radius:4px}
+
+    .parked-list{margin-top:12px}
+    table{width:100%;border-collapse:collapse}
+    td,th{padding:8px;border-bottom:1px solid #f1f5f9;font-size:13px}
+    th{text-align:left;color:var(--muted);font-weight:600}
+
+    footer{margin-top:24px;text-align:center;color:var(--muted);font-size:13px}
+
+    @media (max-width:900px){.row{flex-direction:column}.controls{width:100%}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>Parking Management System</h1>
+      <div style="opacity:.9;font-size:13px;margin-top:6px">Simple single-page app — assign/leave spots, view occupancy, data saved in browser.</div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="row">
+      <div class="card controls">
+        <h2 style="font-size:16px;margin:0">Actions</h2>
+        <form id="parkForm" style="margin-top:12px">
+          <label>Vehicle Number</label>
+          <input id="vehicleNo" placeholder="e.g. MH12AB1234" required />
+
+          <label>Vehicle Type</label>
+          <select id="vehicleType">
+            <option value="car">Car</option>
+            <option value="bike">Bike</option>
+            <option value="ev">EV</option>
+          </select>
+
+          <label>Preferred Level (optional)</label>
+          <select id="preferredLevel">
+            <option value="">Auto assign</option>
+          </select>
+
+          <div style="display:flex;gap:10px;margin-top:12px">
+            <button type="submit">Park Vehicle</button>
+            <button type="button" id="quickLeave" class="secondary">Quick Leave</button>
+          </div>
+        </form>
+
+        <div class="parked-list card" style="margin-top:12px;padding:12px">
+          <h3 style="margin:0 0 8px 0">Parked Vehicles</h3>
+          <table id="parkedTable">
+            <thead><tr><th>Vehicle</th><th>Spot</th><th>Time</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:12px">
+          <h3 style="margin:0 0 6px 0">Quick Stats</h3>
+          <div style="display:flex;gap:12px">
+            <div class="card" style="flex:1;padding:12px;text-align:center">
+              <div style="font-size:20px;font-weight:700" id="totalSpots">-</div>
+              <div style="color:var(--muted)">Total Spots</div>
+            </div>
+            <div class="card" style="flex:1;padding:12px;text-align:center">
+              <div style="font-size:20px;font-weight:700;color:var(--danger)" id="occupiedSpots">-</div>
+              <div style="color:var(--muted)">Occupied</div>
+            </div>
+            <div class="card" style="flex:1;padding:12px;text-align:center">
+              <div style="font-size:20px;font-weight:700;color:var(--ok)" id="freeSpots">-</div>
+              <div style="color:var(--muted)">Available</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="status card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h2 style="margin:0">Garage Map</h2>
+          <div style="font-size:13px;color:var(--muted)">Click a spot to toggle leave / details</div>
+        </div>
+
+        <div class="legend">
+          <span><span class="color" style="background:var(--ok)"></span> Available</span>
+          <span><span class="color" style="background:var(--danger)"></span> Occupied</span>
+          <span><span class="color" style="background:var(--warn)"></span> EV preferred</span>
+        </div>
+
+        <div class="garage" id="garage"></div>
+      </div>
+    </div>
+
+    <footer>Built for demo — data persists locally (localStorage).</footer>
+  </main>
+
+  <script>
+    // Config: levels and spots per level
+    const CONFIG = {
+      levels: [
+        {name: 'L1', spots: 8, evSpots: 2},
+        {name: 'L2', spots: 8, evSpots: 2},
+        {name: 'L3', spots: 6, evSpots: 1}
+      ]
+    };
+
+    // State
+    let state = {levels: []};
+
+    // Utilities
+    function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+    function save(){localStorage.setItem('pms_state', JSON.stringify(state))}
+    function load(){const s=localStorage.getItem('pms_state'); if(s) state=JSON.parse(s); else initState();}
+
+    function initState(){state.levels = CONFIG.levels.map((L,li)=>{
+      const spots=[];
+      for(let i=0;i<L.spots;i++){
+        spots.push({id: `L${li+1}-S${i+1}`, label:`${L.name}-${i+1}`, type: i < L.evSpots ? 'ev' : 'normal', occupied:false, vehicle:null, time:null});
+      }
+      return {name:L.name, spots};
+    }); save();}
+
+    // Render
+    const garageEl = document.getElementById('garage');
+    function render(){
+      garageEl.innerHTML = '';
+      let total = 0, occupied = 0;
+      state.levels.forEach((L,li)=>{
+        const lvl = document.createElement('div'); lvl.className='level';
+        const h3 = document.createElement('h3'); h3.textContent = `${L.name} — ${L.spots.length} spots`; lvl.appendChild(h3);
+        const spotsWrap = document.createElement('div'); spotsWrap.className='spots';
+        L.spots.forEach(s =>{
+          total++;
+          const sp = document.createElement('div'); sp.className='spot';
+          if(s.occupied) { sp.classList.add('taken'); occupied++; }
+          if(s.type==='ev') sp.classList.add('ev');
+          sp.innerHTML = `<div class="label">${s.label}</div><div class="sub">${s.type==='ev'?'EV':''}</div>`;
+          sp.title = s.occupied ? `${s.vehicle} \nParked: ${new Date(s.time).toLocaleString()}` : 'Available';
+          sp.onclick = ()=>spotClicked(L.name, s.id);
+          spotsWrap.appendChild(sp);
+        });
+        lvl.appendChild(spotsWrap);
+        garageEl.appendChild(lvl);
+      });
+      document.getElementById('totalSpots').textContent = total;
+      document.getElementById('occupiedSpots').textContent = occupied;
+      document.getElementById('freeSpots').textContent = total - occupied;
+
+      renderParkedTable();
+      populatePreferredLevels();
+      save();
+    }
+
+    function renderParkedTable(){
+      const tbody = document.querySelector('#parkedTable tbody'); tbody.innerHTML='';
+      state.levels.forEach(L=>{
+        L.spots.forEach(s=>{
+          if(s.occupied){
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${s.vehicle} <div style="font-size:11px;color:var(--muted)">${s.type}</div></td><td>${s.label}</td><td>${new Date(s.time).toLocaleString()}</td><td><button data-spot="${s.id}" class="leaveBtn">Leave</button></td>`;
+            tbody.appendChild(tr);
+          }
+        })
+      })
+      // attach leave handlers
+      document.querySelectorAll('.leaveBtn').forEach(b=>b.onclick = e=>{ leaveBySpotId(e.target.dataset.spot); });
+    }
+
+    function populatePreferredLevels(){
+      const sel = document.getElementById('preferredLevel'); sel.innerHTML = '<option value="">Auto assign</option>';
+      state.levels.forEach((L,idx)=>{ const opt = document.createElement('option'); opt.value = L.name; opt.textContent = L.name; sel.appendChild(opt); })
+    }
+
+    // Actions
+    function tryAssignSpot(vehicleNo, vehicleType, preferredLevel){
+      // prefer preferredLevel if provided; else first-fit
+      const levels = preferredLevel ? state.levels.filter(l=>l.name===preferredLevel) : state.levels;
+      // For EV vehicles, prefer EV spots
+      for(const L of levels){
+        // EV preference
+        if(vehicleType === 'ev'){
+          const s = L.spots.find(sp => !sp.occupied && sp.type==='ev'); if(s) return s;
+        }
+        // any spot
+        const s2 = L.spots.find(sp => !sp.occupied);
+        if(s2) return s2;
+      }
+      // If preferredLevel didn't yield and user asked specific, try others
+      if(preferredLevel){
+        for(const L of state.levels){
+          if(vehicleType==='ev'){ const s = L.spots.find(sp=>!sp.occupied && sp.type==='ev'); if(s) return s; }
+          const s2 = L.spots.find(sp=>!sp.occupied); if(s2) return s2;
+        }
+      }
+      return null;
+    }
+
+    function parkVehicle(vehicleNo, vehicleType, preferredLevel){
+      const spot = tryAssignSpot(vehicleNo, vehicleType, preferredLevel);
+      if(!spot) return {ok:false, msg:'No free spot available'};
+      spot.occupied = true; spot.vehicle = vehicleNo; spot.time = Date.now(); save(); render(); return {ok:true, spot};
+    }
+
+    function leaveBySpotId(spotId){
+      for(const L of state.levels){
+        const s = L.spots.find(sp=>sp.id===spotId);
+        if(s && s.occupied){
+          if(!confirm(`Release ${s.vehicle} from ${s.label}?`)) return;
+          s.occupied=false; s.vehicle=null; s.time=null; save(); render(); return true;
+        }
+      }
+      alert('Spot not occupied or not found');
+    }
+
+    function leaveByVehicleNo(vehicleNo){
+      for(const L of state.levels){
+        const s = L.spots.find(sp=>sp.occupied && sp.vehicle.toLowerCase()===vehicleNo.toLowerCase());
+        if(s){ s.occupied=false; s.vehicle=null; s.time=null; save(); render(); return true; }
+      }
+      return false;
+    }
+
+    function spotClicked(levelName, spotId){
+      // show details and option to leave
+      const L = state.levels.find(l=>l.name===levelName);
+      const s = L.spots.find(x=>x.id===spotId);
+      if(s.occupied){
+        if(confirm(`${s.vehicle} parked at ${s.label}\nLeave now?`)){
+          leaveBySpotId(spotId);
+        }
+      } else {
+        alert(`${s.label} is free`);
+      }
+    }
+
+    // Form handlers
+    document.getElementById('parkForm').addEventListener('submit', e=>{
+      e.preventDefault();
+      const vno = document.getElementById('vehicleNo').value.trim();
+      const vtype = document.getElementById('vehicleType').value;
+      const plevel = document.getElementById('preferredLevel').value;
+      if(!vno) return alert('Enter vehicle number');
+      const res = parkVehicle(vno, vtype, plevel);
+      if(!res.ok) return alert(res.msg);
+      document.getElementById('vehicleNo').value='';
+      alert(`Parked at ${res.spot.label}`);
+    });
+
+    document.getElementById('quickLeave').addEventListener('click', ()=>{
+      const vno = prompt('Enter vehicle number to leave'); if(!vno) return;
+      const ok = leaveByVehicleNo(vno.trim()); if(!ok) alert('Vehicle not found');
+    });
+
+    // Init
+    load(); render();
+
+    // expose for debugging on window
+    window._PMS = {state, render, parkVehicle, leaveBySpotId, leaveByVehicleNo};
+  </script>
+</body>
+</html>
